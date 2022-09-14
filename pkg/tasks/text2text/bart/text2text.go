@@ -14,7 +14,7 @@ import (
 	"github.com/nlpodyssey/cybertron/pkg/generationutils"
 	"github.com/nlpodyssey/cybertron/pkg/models/bart"
 	"github.com/nlpodyssey/cybertron/pkg/tasks/text2text"
-	"github.com/nlpodyssey/cybertron/pkg/tokenizers/sentencepiece"
+	"github.com/nlpodyssey/cybertron/pkg/tokenizers/bpetokenizer"
 	"github.com/nlpodyssey/cybertron/pkg/utils/nullable"
 	"github.com/nlpodyssey/spago/ag"
 	"github.com/nlpodyssey/spago/embeddings/store/diskstore"
@@ -31,16 +31,16 @@ type Text2Text struct {
 	// Model is the model used for conditional generation.
 	Model *bart.ModelForConditionalGeneration
 	// Tokenizer is the tokenizer used for conditional generation.
-	Tokenizer *sentencepiece.Tokenizer
+	Tokenizer *bpetokenizer.BPETokenizer
 	// embeddingsRepo is the repository used for loading embeddings.
 	embeddingsRepo *diskstore.Repository
 }
 
 // LoadText2Text returns a Text2Text loading the model, the embeddings and the tokenizer from a directory.
 func LoadText2Text(modelPath string) (*Text2Text, error) {
-	tok, err := sentencepiece.NewFromModelFolder(modelPath, false)
+	tok, err := bpetokenizer.NewFromModelFolder(modelPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load sentencepiece tokenizer for text2text: %w", err)
+		return nil, fmt.Errorf("failed to load sentencepiece tokenizer for zero-shot: %w", err)
 	}
 
 	embeddingsRepo, err := diskstore.NewRepository(filepath.Join(modelPath, "repo"), diskstore.ReadOnlyMode)
@@ -81,11 +81,17 @@ func (m *Text2Text) Generate(ctx context.Context, text string, opts *text2text.O
 			TopP:        nullable.Type[float64]{Valid: false},
 		}
 	}
-	sequences, scores := m.process(ctx, m.Tokenize(text), *opts)
+	tokenized, err := m.tokenize(text, 0, 2)
+	if err != nil {
+		return text2text.Response{}, err
+	}
+
+	sequences, scores := m.process(ctx, tokenized, *opts)
 	result := text2text.Response{
 		Texts:  make([]string, len(sequences)),
 		Scores: make([]float64, len(scores)),
 	}
+	sequences = sequences[0:1]
 	for i, sequence := range sequences {
 		result.Texts[i], result.Scores[i] = m.Detokenize(sequence), scores[i]
 	}

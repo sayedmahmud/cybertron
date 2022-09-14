@@ -5,8 +5,18 @@
 package bart
 
 // Tokenize returns the token IDs of the input text applying the EOS pad token.
-func (m *Text2Text) Tokenize(text string) []int {
-	return append(m.Tokenizer.TokensToIDs(m.Tokenizer.Tokenize(text)), m.Model.Bart.Config.EosTokenID)
+func (m *Text2Text) tokenize(text string, startTokenID, endTokenID int) ([]int, error) {
+	encoded, err := m.Tokenizer.Encode(text)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenized := make([]int, len(encoded.IDs)+2)
+	tokenized[0] = startTokenID
+	copy(tokenized[1:len(tokenized)-1], encoded.IDs)
+	tokenized[len(tokenized)-1] = endTokenID
+
+	return tokenized, nil
 }
 
 // Detokenize returns the text of the input token IDs removing the padding token.
@@ -24,5 +34,5 @@ func (m *Text2Text) Detokenize(tokenIds []int) string {
 		return result
 	}
 
-	return m.Tokenizer.Detokenize(m.Tokenizer.IDsToTokens(stripBadTokens(tokenIds)))
+	return m.Tokenizer.Detokenize(stripBadTokens(tokenIds))
 }
