@@ -7,7 +7,6 @@ package bert
 import (
 	"context"
 	"fmt"
-	"github.com/nlpodyssey/spago/mat"
 	"path"
 	"path/filepath"
 	"sort"
@@ -18,7 +17,7 @@ import (
 	"github.com/nlpodyssey/cybertron/pkg/tokenizers"
 	"github.com/nlpodyssey/cybertron/pkg/tokenizers/wordpiecetokenizer"
 	"github.com/nlpodyssey/cybertron/pkg/vocabulary"
-	"github.com/nlpodyssey/spago/embeddings/store/diskstore"
+	"github.com/nlpodyssey/spago/mat"
 	"github.com/nlpodyssey/spago/nn"
 )
 
@@ -34,8 +33,6 @@ type LanguageModel struct {
 	Tokenizer *wordpiecetokenizer.WordPieceTokenizer
 	// doLowerCase is a flag indicating if the model should lowercase the input before tokenization.
 	doLowerCase bool
-	// embeddingsRepo is the repository used for loading embeddings.
-	embeddingsRepo *diskstore.Repository
 }
 
 // LoadMaskedLanguageModel returns a LanguageModel loading the model, the embeddings and the tokenizer from a directory.
@@ -51,27 +48,16 @@ func LoadMaskedLanguageModel(modelPath string) (*LanguageModel, error) {
 		return nil, fmt.Errorf("failed to load tokenizer config for text classification: %w", err)
 	}
 
-	embeddingsRepo, err := diskstore.NewRepository(filepath.Join(modelPath, "repo"), diskstore.ReadOnlyMode)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load embeddings repository for text classification: %w", err)
-	}
-
 	m, err := nn.LoadFromFile[*bert.ModelForMaskedLM](path.Join(modelPath, "spago_model.bin"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load bart model: %w", err)
 	}
 
-	err = m.Bert.SetEmbeddings(embeddingsRepo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set embeddings: %w", err)
-	}
-
 	return &LanguageModel{
-		Model:          m,
-		vocab:          vocab,
-		Tokenizer:      tokenizer,
-		doLowerCase:    tokenizerConfig.DoLowerCase,
-		embeddingsRepo: embeddingsRepo,
+		Model:       m,
+		vocab:       vocab,
+		Tokenizer:   tokenizer,
+		doLowerCase: tokenizerConfig.DoLowerCase,
 	}, nil
 }
 
